@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BMI 工具 · 个人健康站</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .bmi-box{max-width:600px;margin:0 auto}
+  .inputs{display:flex;gap:14px;margin:18px 0 2px}
+  .field{flex:1;position:relative}
+  .field label{display:block;font-size:12px;color:var(--dim);margin-bottom:7px;letter-spacing:.08em}
+  .field input{width:100%;background:rgba(255,255,255,.045);border:1px solid var(--line);border-radius:14px;padding:12px 46px 12px 16px;color:var(--txt);font-family:var(--font-num);font-size:22px;font-weight:600;outline:none}
+  .field input:focus{border-color:rgba(79,179,255,.6);box-shadow:0 0 0 4px rgba(79,179,255,.12)}
+  .unit{position:absolute;right:16px;top:41px;font-size:14px;color:var(--dim)}
+  .gauge{width:100%;display:block}
+  .bmi-num{font-family:var(--font-num);font-size:32px;font-weight:700;fill:#fff}
+  .bmi-cat{font-size:12px;font-weight:600;letter-spacing:.18em}
+  .hw-line{font-size:12.5px;fill:var(--dim);letter-spacing:.1em}
+  .legend{display:flex;justify-content:center;gap:16px;margin-top:4px;flex-wrap:wrap}
+  .legend span{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  @keyframes draw{to{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="logo">HEALTH<em>·</em>ME</div>
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="diet.html">饮食指导</a>
+      <a href="training.html">训练计划</a>
+      <a href="exercises.html">动作指导</a>
+      <a href="faq.html">常见问题</a>
+      <a class="on" href="bmi.html">BMI 工具</a>
+    </nav>
+  </div>
+
+  <div class="eyebrow">BMI Meter</div>
+  <h1>BMI 环形指标</h1>
+  <div class="sub">输入身高体重，实时查看你的身体质量指数与分类</div>
+
+  <div class="card bmi-box">
+    <div class="inputs">
+      <div class="field"><label>身高 HEIGHT</label><input id="height" type="number" value="165" min="80" max="250" step="0.5" inputmode="decimal"><span class="unit">cm</span></div>
+      <div class="field"><label>体重 WEIGHT</label><input id="weight" type="number" value="67" min="20" max="300" step="0.1" inputmode="decimal"><span class="unit">kg</span></div>
+    </div>
+    <svg id="gauge" class="gauge" viewBox="0 0 520 440" role="img" aria-label="BMI 环形图">
+      <defs>
+        <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.5" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="center">
+        <circle id="hub" cx="260" cy="235" r="48" fill="rgba(255,255,255,.045)" stroke="rgba(255,255,255,.16)" stroke-width="1.5"/>
+        <circle id="hubInner" cx="260" cy="235" r="40" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1"/>
+        <text id="bmiVal" x="260" y="230" text-anchor="middle" class="bmi-num">—</text>
+        <text id="bmiCat" x="260" y="252" text-anchor="middle" class="bmi-cat">—</text>
+        <text id="hwLine" x="260" y="298" text-anchor="middle" class="hw-line">—</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="dot" style="background:#4fb3ff"></i>偏瘦 &lt;18.5</span>
+      <span><i class="dot" style="background:#3ddc97"></i>正常 18.5–23.9</span>
+      <span><i class="dot" style="background:#ffb020"></i>超重 24–27.9</span>
+      <span><i class="dot" style="background:#ff5a5f"></i>肥胖 ≥28</span>
+    </div>
+  </div>
+  <div class="note" style="max-width:600px;margin:16px auto 0">按中国成人 BMI 标准 ｜ 请结合体脂率综合判断 ｜ 本工具仅供健康参考</div>
+
+  <footer><a href="index.html">← 返回首页</a></footer>
+</div>
+
+<script>
+(function(){
+  const CX=260, CY=235, R=180, MIN=10, MAX=40, START=135, SWEEP=270;
+  const svg=document.getElementById('gauge');
+  const NS='http://www.w3.org/2000/svg';
+  const heightEl=document.getElementById('height');
+  const weightEl=document.getElementById('weight');
+  const bmiValEl=document.getElementById('bmiVal');
+  const bmiCatEl=document.getElementById('bmiCat');
+  const hwLineEl=document.getElementById('hwLine');
+  function polar(cx,cy,r,deg){const a=deg*Math.PI/180;return [cx+r*Math.cos(a), cy+r*Math.sin(a)]}
+  function arcPath(cx,cy,r,a1,a2){
+    const [x1,y1]=polar(cx,cy,r,a1),[x2,y2]=polar(cx,cy,r,a2);
+    return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  }
+  const angleFor=bmi=>START+(bmi-MIN)/(MAX-MIN)*SWEEP;
+  const track=document.createElementNS(NS,'path');
+  track.setAttribute('d',arcPath(CX,CY,R,START,START+SWEEP));
+  track.setAttribute('fill','none');track.setAttribute('stroke','rgba(255,255,255,.07)');track.setAttribute('stroke-width','26');
+  svg.insertBefore(track,document.getElementById('center'));
+  const segs=[
+    {from:10,to:18.5,color:'#4fb3ff'},{from:18.5,to:24,color:'#3ddc97'},
+    {from:24,to:28,color:'#ffb020'},{from:28,to:40,color:'#ff5a5f'}];
+  const GAP=1.8;
+  segs.forEach((s,idx)=>{
+    const a1=angleFor(s.from)+GAP,a2=angleFor(s.to)-GAP;
+    const len=2*Math.PI*R*((a2-a1)/360);
+    const p=document.createElementNS(NS,'path');
+    p.setAttribute('d',arcPath(CX,CY,R,a1,a2));
+    p.setAttribute('fill','none');p.setAttribute('stroke',s.color);p.setAttribute('stroke-width','26');
+    p.style.strokeDasharray=len;p.style.strokeDashoffset=len;
+    p.style.animation=`draw .9s cubic-bezier(.22,1,.36,1) forwards`;
+    p.style.animationDelay=`${0.12*idx}s`;
+    svg.insertBefore(p,document.getElementById('center'));
+  });
+  for(let b=MIN;b<=MAX;b++){
+    const deg=angleFor(b),major=b%5===0;
+    const [x1,y1]=polar(CX,CY,major?197:202,deg),[x2,y2]=polar(CX,CY,major?210:207,deg);
+    const line=document.createElementNS(NS,'line');
+    line.setAttribute('x1',x1);line.setAttribute('y1',y1);line.setAttribute('x2',x2);line.setAttribute('y2',y2);
+    line.setAttribute('stroke',major?'rgba(255,255,255,.5)':'rgba(255,255,255,.14)');
+    line.setAttribute('stroke-width',major?'1.6':'1');
+    svg.insertBefore(line,document.getElementById('center'));
+    if(major){
+      const [tx,ty]=polar(CX,CY,226,deg);
+      const t=document.createElementNS(NS,'text');
+      t.setAttribute('x',tx);t.setAttribute('y',ty);t.setAttribute('text-anchor','middle');
+      t.setAttribute('fill','rgba(255,255,255,.5)');t.setAttribute('font-size','12');
+      t.style.fontFamily='var(--font-num)';t.textContent=b;
+      svg.insertBefore(t,document.getElementById('center'));
+    }
+  }
+  const marker=document.createElementNS(NS,'g');
+  marker.id='marker';
+  marker.style.cssText=`transform-box:view-box;transform-origin:${CX}px ${CY}px;transition:transform .7s cubic-bezier(.22,1,.36,1)`;
+  const tri=document.createElementNS(NS,'path');
+  tri.setAttribute('fill','#fff');tri.setAttribute('filter','url(#glow)');
+  tri.setAttribute('d',`M ${CX+149} ${CY-9} Q ${CX+160} ${CY-8} ${CX+166} ${CY} Q ${CX+160} ${CY+8} ${CX+149} ${CY+9} A 9 9 0 0 1 ${CX+149} ${CY-9} Z`);
+  marker.append(tri);
+  svg.insertBefore(marker,document.getElementById('center'));
+  function categorize(b){
+    if(b<18.5)return{name:'偏瘦',color:'#4fb3ff'};
+    if(b<24)return{name:'正常',color:'#3ddc97'};
+    if(b<28)return{name:'超重',color:'#ffb020'};
+    return{name:'肥胖',color:'#ff5a5f'};
+  }
+  let curBmi=null,raf=null;
+  function animateTo(target){
+    if(raf)cancelAnimationFrame(raf);
+    const from=curBmi===null?target:curBmi,t0=performance.now(),dur=500;
+    const step=now=>{
+      const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3);
+      curBmi=from+(target-from)*e;
+      bmiValEl.textContent=curBmi.toFixed(1);
+      if(p<1)raf=requestAnimationFrame(step);else curBmi=target;
+    };
+    raf=requestAnimationFrame(step);
+  }
+  function update(){
+    const h=parseFloat(heightEl.value),w=parseFloat(weightEl.value);
+    const valid=isFinite(h)&&isFinite(w)&&h>=80&&h<=250&&w>=20&&w<=300;
+    if(!valid){
+      marker.style.transform=`rotate(${START}deg)`;
+      bmiValEl.textContent='—';bmiCatEl.textContent='—';
+      bmiCatEl.setAttribute('fill','rgba(255,255,255,.5)');hwLineEl.textContent='—';
+      if(raf){cancelAnimationFrame(raf);raf=null}return;
+    }
+    const bmi=w/Math.pow(h/100,2);
+    marker.style.transform=`rotate(${angleFor(Math.min(MAX,Math.max(MIN,bmi)))}deg)`;
+    animateTo(bmi);
+    const cat=categorize(bmi);
+    bmiCatEl.textContent=cat.name;bmiCatEl.setAttribute('fill',cat.color);
+    hwLineEl.textContent=`${h} cm · ${w} kg`;
+  }
+  heightEl.addEventListener('input',update);
+  weightEl.addEventListener('input',update);
+  update();
+})();
+</script>
+</body>
+</html>
